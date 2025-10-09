@@ -1382,13 +1382,138 @@ start htmlcov/index.html  # Windows
 ## แนบรูปผลการทดลองการทดสอบระบบ
 ```plaintext
 # แนบรูปผลการทดลองที่นี่
-
 ``` 
+![image1](../image/image1.png)
+
 ## คำถามการทดลอง
 ให้จับคู่ Code ส่วนของการทดสอบ กับ Code การทำงาน มาอย่างน้อย 3 ฟังก์ชัน พร้อมอธิบายการทำงานของแต่ละกรณี
 ```plaintext
 # ตอบคำถามที่นี่
 
+### กรณีที่ 1: การทดสอบ Health Check Endpoint
+
+- **Code การทำงาน (`app/routes.py`):**
+  ```python
+  @api.route('/health', methods=['GET'])
+  def health_check():
+      """Health check endpoint for monitoring"""
+      try:
+          db.session.execute(db.text('SELECT 1'))
+          return jsonify({
+              'status': 'healthy',
+              'database': 'connected'
+          }), 200
+      except Exception:
+          return jsonify({
+              'status': 'unhealthy',
+              'database': 'disconnected',
+              'error': 'Database connection failed'
+          }), 503
+  ```
+- **Code ส่วนของการทดสอบ (`tests/test_app.py`):**
+  ```python
+  def test_health_endpoint_success(self, client):
+      """Test health check returns 200 when database is healthy"""
+      response = client.get('/api/health')
+      assert response.status_code == 200
+      data = response.get_json()
+      assert data['status'] == 'healthy'
+      assert data['database'] == 'connected'
+  ```
+- **คำอธิบาย:**
+  ฟังก์ชัน `test_health_endpoint_success` ถูกสร้างขึ้นเพื่อทดสอบฟังก์ชัน `health_check` โดยการจำลองการเรียก API ไปยัง `/api/health` และตรวจสอบว่าได้รับ HTTP status code `200` กลับมาหรือไม่ ซึ่งบ่งบอกว่าเซิร์ฟเวอร์ทำงานปกติ นอกจากนี้ยังตรวจสอบข้อมูล JSON ที่ตอบกลับว่ามีค่า `status` เป็น `healthy` และ `database` เป็น `connected` เพื่อให้แน่ใจว่า Application สามารถเชื่อมต่อกับฐานข้อมูลได้สำเร็จ
+
+### กรณีที่ 2: การทดสอบการสร้าง Todo Item ใหม่
+
+- **Code การทำงาน (`app/routes.py`):**
+  ```python
+  @api.route('/todos', methods=['POST'])
+  def create_todo():
+      """Create a new todo item"""
+      data = request.get_json()
+
+      if not data or not data.get('title'):
+          return jsonify({
+              'success': False,
+              'error': 'Title is required'
+          }), 400
+
+      try:
+          todo = Todo(
+              title=data['title'],
+              description=data.get('description', '')
+          )
+          db.session.add(todo)
+          db.session.commit()
+
+          return jsonify({
+              'success': True,
+              'data': todo.to_dict(),
+              'message': 'Todo created successfully'
+          }), 201
+      # ... (error handling)
+  ```
+- **Code ส่วนของการทดสอบ (`tests/test_app.py`):**
+  ```python
+  def test_create_todo_with_full_data(self, client):
+      """Test creating a new todo with title and description"""
+      todo_data = {
+          'title': 'Test Todo',
+          'description': 'This is a test todo'
+      }
+      response = client.post('/api/todos', json=todo_data)
+      assert response.status_code == 201
+      data = response.get_json()
+      assert data['success'] is True
+      assert data['data']['title'] == 'Test Todo'
+  ```
+- **คำอธิบาย:**
+  ฟังก์ชัน `test_create_todo_with_full_data` ทำหน้าที่ทดสอบฟังก์ชัน `create_todo` โดยส่ง HTTP POST request ไปยัง `/api/todos` พร้อมข้อมูล JSON สำหรับสร้าง todo ใหม่ จากนั้นจะตรวจสอบว่า status code ที่ตอบกลับเป็น `201` (Created) หรือไม่ และข้อมูลที่ส่งกลับมาใน response body ตรงกับข้อมูลที่ส่งไปหรือไม่ เพื่อให้มั่นใจว่า API สามารถสร้างข้อมูลใหม่ลงฐานข้อมูลได้ถูกต้อง
+
+### กรณีที่ 3: การทดสอบการลบ Todo Item
+
+- **Code การทำงาน (`app/routes.py`):**
+  ```python
+  @api.route('/todos/<int:todo_id>', methods=['DELETE'])
+  def delete_todo(todo_id):
+      """Delete a todo item"""
+      todo = Todo.query.get(todo_id)
+      if not todo:
+          return jsonify({
+              'success': False,
+              'error': 'Todo not found'
+          }), 404
+
+      try:
+          db.session.delete(todo)
+          db.session.commit()
+
+          return jsonify({
+              'success': True,
+              'message': 'Todo deleted successfully'
+          }), 200
+      # ... (error handling)
+  ```
+- **Code ส่วนของการทดสอบ (`tests/test_app.py`):**
+  ```python
+  def test_delete_todo(self, client, app):
+      """Test deleting a todo"""
+      # Create a todo first
+      with app.app_context():
+          todo = Todo(title='To Be Deleted')
+          db.session.add(todo)
+          db.session.commit()
+          todo_id = todo.id
+      
+      response = client.delete(f'/api/todos/{todo_id}')
+      assert response.status_code == 200
+      
+      # Verify it's deleted
+      response = client.get(f'/api/todos/{todo_id}')
+      assert response.status_code == 404
+  ```
+- **คำอธิบาย:**
+  ฟังก์ชัน `test_delete_todo` ทดสอบการทำงานของฟังก์ชัน `delete_todo` โดยเริ่มจากการสร้าง todo item ขึ้นมาก่อนเพื่อให้มีข้อมูลสำหรับลบ จากนั้นจึงส่ง HTTP DELETE request ไปยัง `/api/todos/{id}` ของ item นั้นๆ และตรวจสอบว่า status code เป็น `200` (OK) หรือไม่ ขั้นตอนสำคัญคือการตรวจสอบซ้ำโดยการส่ง HTTP GET request ไปยัง ID เดิมอีกครั้ง และคาดหวังว่าจะต้องได้รับ status code `404` (Not Found) เพื่อยืนยันว่าข้อมูลได้ถูกลบออกจากระบบไปแล้วจริงๆ
 
 ```
 
