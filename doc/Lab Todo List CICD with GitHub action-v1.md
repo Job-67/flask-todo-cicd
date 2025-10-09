@@ -1760,6 +1760,8 @@ jobs:
 **หมายเหตุ**: Internal Database URL จะมีรูปแบบประมาณนี้:
 ```
 postgresql://todo_user:xxxxx@dpg-xxxxx-a/todo_db_xx
+
+postgresql://todo_user:koSWQWbSVUxDQoOqyF38Y0nLvbd31fYs@dpg-d3jievvdiees73ciag50-a/todo_db_cqd1
 ```
 
 ---

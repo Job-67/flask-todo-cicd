@@ -3,8 +3,6 @@ from app import create_app
 from app.models import db, Todo
 from unittest.mock import patch
 from sqlalchemy.exc import SQLAlchemyError
-from unittest.mock import patch
-from sqlalchemy.exc import SQLAlchemyError
 
 @pytest.fixture
 def app():
@@ -320,8 +318,7 @@ class TestTodoAPI:
         data = response.get_json()
         assert data['success'] is False
     
-    @patch('app.routes.db.session.delete')
-    def test_delete_todo_database_error(self, mock_commit, client, app):
+    def test_delete_todo_database_error(self, client, app):
         """Test database error during todo deletion"""
         with app.app_context():
             todo = Todo(title='Test')
@@ -329,12 +326,13 @@ class TestTodoAPI:
             db.session.commit()
             todo_id = todo.id
         
-        mock_commit.side_effect = SQLAlchemyError('Database error')
-        
-        response = client.delete(f'/api/todos/{todo_id}')
-        assert response.status_code == 500
-        data = response.get_json()
-        assert data['success'] is False
+        with patch('app.routes.db.session.delete') as mock_delete:
+            mock_delete.side_effect = SQLAlchemyError('Database error')
+            
+            response = client.delete(f'/api/todos/{todo_id}')
+            assert response.status_code == 500
+            data = response.get_json()
+            assert data['success'] is False
     
     def test_get_all_todos_ordered(self, client, app):
         """Test getting all todos returns them in correct order"""
